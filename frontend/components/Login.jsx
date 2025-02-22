@@ -20,6 +20,7 @@ const Login = ({ onLogin }) => {
 
       if (response.data.token) {
         localStorage.setItem("token", response.data.token);
+        localStorage.setItem("username", response.data.username);
         alert("Login successful!");
         navigate("/chats");  // Redirect to chat page
       }
