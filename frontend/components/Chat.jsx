@@ -3,19 +3,11 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
 import CryptoJS from "crypto-js";
-import {
-  FaUserCircle,
-  FaSignOutAlt,
-  FaPaperPlane,
-  FaCheck,
-  FaTimes,
-  FaUserPlus,
-} from "react-icons/fa";
 import toast from "react-hot-toast";
-
 const socket = io("http://localhost:5000", { autoConnect: false });
 
 const Chat = () => {
+  // ... (All existing state variables and logic remain the same)
   const [users, setUsers] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState({});
   const [selectedUser, setSelectedUser] = useState(null);
@@ -49,7 +41,10 @@ const Chat = () => {
     socket.on("receive-connection-request", ({ sender, aesKey }) => {
       setIncomingRequest(sender);
       localStorage.setItem("aesKey", aesKey);
-      console.log(`🔑 Received AES key from ${sender}: ${aesKey}`);
+      console.log(
+        `🔑 [Key Receiving] Received AES Key from ${sender}:`,
+        aesKey
+      );
     });
 
     socket.on("connection-accepted", ({ receiver }) => {
@@ -64,7 +59,15 @@ const Chat = () => {
     });
 
     socket.on("receiveMessage", ({ sender, text }) => {
+      console.log(
+        `🔓 [Decryption] Received Encrypted Message from ${sender}:`,
+        `\n- Encrypted Message: "${text}"`
+      );
       const decryptedMessage = decryptMessage(text);
+      console.log(
+        `🔓 [Decryption] Decrypted Message:`,
+        `\n- Decrypted Message: "${decryptedMessage}"`
+      );
       setMessages((prev) => [...prev, { sender, text: decryptedMessage }]);
     });
 
@@ -84,6 +87,9 @@ const Chat = () => {
     if (!key) {
       key = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
       localStorage.setItem("aesKey", key);
+      console.log("🔑 [Key Generation] New AES Key Generated:", key);
+    } else {
+      console.log("🔑 [Key Generation] Using Existing AES Key:", key);
     }
     return key;
   };
@@ -96,12 +102,21 @@ const Chat = () => {
 
   const decryptMessage = (encryptedMessage) => {
     const key = localStorage.getItem("aesKey");
-    if (!key) return "[Decryption Failed: Key Missing]";
+    if (!key) {
+      console.error("🔓 [Decryption Failed] AES Key Missing!");
+      return "[Decryption Failed: Key Missing]";
+    }
+
     try {
       const bytes = CryptoJS.AES.decrypt(encryptedMessage, key);
       const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-      return decryptedText || "[Decryption Failed]";
+      if (!decryptedText) {
+        console.error("🔓 [Decryption Failed] Invalid Key or Message!");
+        return "[Decryption Failed]";
+      }
+      return decryptedText;
     } catch (error) {
+      console.error("🔓 [Decryption Failed] Error:", error);
       return "[Decryption Failed]";
     }
   };
@@ -139,6 +154,10 @@ const Chat = () => {
       receiver: receiverUsername,
       aesKey,
     });
+    console.log(
+      `🔑 [Key Sharing] Sending AES Key to ${receiverUsername}:`,
+      aesKey
+    );
     // alert(`Connection request sent to ${receiverUsername}`);
     toast.success(`Connection request sent to ${receiverUsername}`);
   };
@@ -175,6 +194,11 @@ const Chat = () => {
   const handleSendMessage = () => {
     if (newMessage.trim() && selectedUser) {
       const encryptedMessage = encryptMessage(newMessage, aesKey);
+      console.log(
+        `🔒 [Encryption] Encrypting Message:`,
+        `\n- Original Message: "${newMessage}"`,
+        `\n- Encrypted Message: "${encryptedMessage}"`
+      );
       socket.emit("sendMessage", {
         sender: loggedInUser,
         receiver: selectedUser,
@@ -211,146 +235,265 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-r from-gray-900 to-black text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex">
       {incomingRequest && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70">
-          <div className="bg-gray-800 p-8 rounded-xl shadow-xl text-center animate-fade-in">
-            <h2 className="text-2xl font-bold mb-4">
-              {incomingRequest} wants to connect with you.
-            </h2>
+        <div className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50">
+          <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-100 mb-2">
+                Connection Request
+              </h2>
+              <p className="text-gray-400">
+                {incomingRequest} wants to connect
+              </p>
+            </div>
             <div className="flex gap-4 justify-center">
               <button
                 onClick={acceptRequest}
-                className="px-4 py-2 bg-green-600 rounded-xl flex items-center gap-2 hover:bg-green-700"
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105"
               >
-                <FaCheck /> Accept
+                Accept
               </button>
               <button
                 onClick={rejectRequest}
-                className="px-4 py-2 bg-red-600 rounded-xl flex items-center gap-2 hover:bg-red-700"
+                className="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105"
               >
-                <FaTimes /> Reject
+                Decline
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="w-1/4 bg-gray-800 p-4 shadow-xl overflow-y-auto">
-        <h2 className="text-3xl font-extrabold mb-6 flex items-center gap-2">
-          <FaUserCircle /> Chat App
-        </h2>
-        <div className="mb-6 p-3 bg-blue-700 rounded-xl shadow-md">
-          <p className="font-semibold">Logged in as: {loggedInUser}</p>
+      {/* Left Sidebar */}
+      <div className="w-full md:w-1/3 lg:w-1/4 bg-gray-800/80 border-r border-gray-700 p-6 flex flex-col h-screen">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-green-300 bg-clip-text text-transparent">
+            SecureChat
+          </h1>
+          <div className="mt-4 p-4 bg-gray-700/50 rounded-xl">
+            <p className="text-sm font-medium   text-gray-300">
+              👤 {loggedInUser}
+            </p>
+          </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-3">Registered Users</h3>
-        {users.map((user) => (
-          <div
-            key={user._id}
-            className="flex items-center justify-between p-3 mb-2 rounded-xl bg-gray-700 shadow-md hover:shadow-lg transition-all"
-          >
-            <p className="font-semibold">{user.username}</p>
-            <div className="flex items-center gap-2">
-              {selectedUser === user.username ? (
-                <span className="px-2 py-1 text-sm rounded-xl bg-green-600">
-                  ✅ Connected
-                </span>
-              ) : (
-                <>
-                  <span
-                    className={`px-2 py-1 text-sm rounded-xl ${
-                      onlineUsers[user.username]
-                        ? "bg-green-500"
-                        : "bg-gray-500"
-                    }`}
-                  >
-                    {onlineUsers[user.username] ? "Online" : "Offline"}
+        <div className="flex-1 overflow-y-auto">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">
+            Active Users
+          </h3>
+          {users.length > 0 ? (
+            users.map((user) => (
+              <div
+                key={user._id}
+                className={`group flex items-center justify-between p-3 mb-2 rounded-xl transition-all duration-200 ${
+                  selectedUser === user.username
+                    ? "bg-gradient-to-r from-blue-600/30 to-green-600/30"
+                    : "hover:bg-gray-700/30"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="w-2.5 h-2.5 rounded-full absolute -right-0.5 -top-0.5 border-2 border-gray-800">
+                      <div
+                        className={`w-full h-full rounded-full ${
+                          onlineUsers[user.username]
+                            ? "bg-green-500"
+                            : "bg-gray-600"
+                        }`}
+                      />
+                    </div>
+                    <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
+                      <span className="text-gray-300">
+                        {user.username[0].toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-gray-200 font-medium">
+                    {user.username}
                   </span>
-                  {onlineUsers[user.username] && (
+                </div>
+
+                {selectedUser === user.username ? (
+                  <span className="text-xs bg-green-500/20 text-green-400 px-2.5 py-1 rounded-full">
+                    Connected
+                  </span>
+                ) : (
+                  onlineUsers[user.username] && (
                     <button
                       onClick={() => handleConnect(user.username)}
-                      className="px-2 py-1 bg-blue-600 rounded-xl flex items-center gap-1 hover:bg-blue-700"
+                      className="opacity-0 group-hover:opacity-100  px-3 py-1.5 text-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-full transition-all duration-200"
                     >
-                      <FaUserPlus /> Connect
+                      Connect
                     </button>
-                  )}
-                </>
-              )}
+                  )
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="p-4 bg-gray-700/20 rounded-xl">
+              <p className="text-center text-gray-400 text-sm">
+                No other users found
+              </p>
             </div>
-          </div>
-        ))}
+          )}
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className="mt-6 w-full py-3 bg-gradient-to-r from-red-600 to-pink-700 hover:from-red-700 hover:to-pink-800 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02]"
+        >
+          Logout
+        </button>
       </div>
 
-      <div className="flex-1 flex flex-col p-8 bg-gray-900">
+      {/* Right Chat Area */}
+      <div className="flex-1 flex flex-col h-screen">
         {selectedUser ? (
           <>
-            <div className="flex justify-between items-center mb-4 bg-gray-800 p-4 rounded-xl shadow-lg animate-slide-in">
-              <h2 className="text-2xl font-bold">
-                Chat with {selectedUser} 💬
-              </h2>
+            <div className="p-6 border-b border-gray-700 flex items-center justify-between bg-gray-800/30">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
+                  <span className="text-xl text-gray-300">
+                    {selectedUser[0].toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-100">
+                    {selectedUser}
+                  </h2>
+                  <p className="text-sm text-green-400 flex items-center">
+                    <span className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                    Online
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => {
-                  // ToastIcon.success(`disconnected with ${selectedUser}`)
                   setSelectedUser(null);
                   localStorage.removeItem("aesKey");
                 }}
-                className="px-4 py-2 bg-red-600 rounded-xl flex items-center gap-2 hover:bg-red-700"
+                className="px-5 py-2.5 bg-red-600/30 hover:bg-red-600/60  border-1 border-gray-700 text-white rounded-xl transition-all duration-200"
               >
-                <FaSignOutAlt /> Disconnect
+                Disconnect
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto mb-4 p-4 bg-gray-800 rounded-xl h-96">
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`mb-3 p-3 rounded-xl shadow-md ${
-                    msg.sender === loggedInUser
-                      ? "bg-blue-600 ml-auto text-right"
-                      : "bg-green-600 mr-auto"
-                  }`}
-                >
-                  <strong>{msg.sender}:</strong> {msg.text}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-900/20 to-gray-900/50">
+              {messages.length > 0 ? (
+                messages.map((msg, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${
+                      msg.sender === loggedInUser
+                        ? "justify-end"
+                        : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[70%] p-4 rounded-2xl ${
+                        msg.sender === loggedInUser
+                          ? "bg-gradient-to-br from-blue-600 to-blue-700"
+                          : "bg-gradient-to-br from-gray-700 to-gray-800"
+                      }`}
+                    >
+                      <p className="text-md  font-mono text-gray-300 mb-1 ">
+                        {msg.sender}
+                      </p>
+                      <p className="text-gray-100 ">{msg.text}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center p-8 max-w-md">
+                    <div className="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <svg
+                        className="w-12 h-12 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-200 mb-2">
+                      Start the Conversation
+                    </h3>
+                    <p className="text-gray-400">
+                      Send your first secure message to {selectedUser}
+                    </p>
+                  </div>
                 </div>
-              ))}
-              {messages.length === 0 && (
-                <p className="text-center text-gray-400">
-                  🚀 No messages yet. Start chatting!
-                </p>
               )}
             </div>
 
-            <div className="flex gap-3 bg-gray-800 p-4 rounded-xl">
-              <input
-                type="text"
-                className="flex-1 p-3 rounded-xl bg-gray-700 text-white placeholder-gray-400 focus:outline-none"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-              />
-              <button
-                onClick={handleSendMessage}
-                className="px-4 py-2 bg-blue-600 rounded-xl flex items-center gap-2 hover:bg-blue-700"
-              >
-                <FaPaperPlane /> Send
-              </button>
+            <div className="p-6 border-t border-gray-700 bg-gray-800/30">
+              <div className="flex space-x-4">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type your encrypted message..."
+                  className="flex-1 p-4 bg-gray-700/50 border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-500"
+                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="px-6 py-4 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02]"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-            <h1 className="text-5xl font-extrabold">
-              🚀 Welcome to the Chat Page!
-            </h1>
-            <p className="mt-3 text-lg text-gray-400">
-              Select a user to start chatting securely.
-            </p>
-            <button
-              onClick={handleLogout}
-              className="mt-6 px-6 py-3 bg-red-600 rounded-xl flex items-center gap-2 hover:bg-red-700"
-            >
-              <FaSignOutAlt /> Logout
-            </button>
+          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gradient-to-br from-gray-900/50 to-gray-900/20">
+            <div className="text-center max-w-md">
+              <div className="w-32 h-32 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-8">
+                <svg
+                  className="w-16 h-16 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold text-gray-100 mb-4">
+                Secure Chat Platform
+              </h1>
+              <p className="text-gray-400 mb-8">
+                Select a user from the sidebar to start an encrypted
+                conversation. All messages are end-to-end encrypted using
+                AES-256.
+              </p>
+            </div>
           </div>
         )}
       </div>
